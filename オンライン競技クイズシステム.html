@@ -10,17 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PapaParse for CSV Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.FirebaseSDK = {
-            initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged,
-            getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, arrayUnion
-        };
-    </script>
+    <!-- PeerJS for P2P Online Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.min.js"></script>
     <style>
         .buzz-btn-active:active {
             transform: scale(0.95);
@@ -28,14 +19,6 @@
         }
         .text-mask {
             user-select: none;
-        }
-        @keyframes pulse-ring {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.05); opacity: 0.4; }
-            100% { transform: scale(0.95); opacity: 0.8; }
-        }
-        .animate-pulse-ring {
-            animation: pulse-ring 2s infinite ease-in-out;
         }
     </style>
 </head>
@@ -55,7 +38,6 @@
             </div>
             
             <div id="userInfo" class="flex items-center gap-3">
-                <!-- Player Name Edit Area -->
                 <button id="changeNameBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-2 transition" title="名前を変更">
                     <i class="fa-solid fa-user text-red-400"></i>
                     <span id="playerNameDisplay">ゲストプレイヤー</span>
@@ -104,7 +86,7 @@
                     </div>
                 </div>
 
-                <!-- Text Display Box (Reveals as speech progresses) -->
+                <!-- Text Display Box -->
                 <div class="flex-1 flex flex-col justify-center my-2">
                     <p id="questionDisplayText" class="text-xl md:text-2xl font-medium leading-relaxed text-slate-200 tracking-wide min-h-[3.5rem]">
                         「問題スタート！」を押すと問読みが開始します。
@@ -131,9 +113,8 @@
                         </div>
                     </div>
 
-                    <!-- Speech Controls & Test Button -->
                     <div class="flex items-center gap-3 text-xs text-slate-400">
-                        <button id="testAudioBtn" class="bg-indigo-600/80 hover:bg-indigo-500 text-white px-2.5 py-1 rounded text-xs transition flex items-center gap-1">
+                        <button id="testAudioBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded text-xs transition flex items-center gap-1 shadow-md">
                             <i class="fa-solid fa-volume-high"></i> 音声テスト
                         </button>
                         <div class="flex items-center gap-1">
@@ -152,14 +133,11 @@
 
             <!-- Big Buzz Button & Action Center -->
             <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-center gap-4">
-                
-                <!-- Main Buzzer Button -->
                 <button id="buzzBtn" class="w-full max-w-md h-36 md:h-44 rounded-3xl bg-gradient-to-b from-red-500 to-red-700 hover:from-red-400 hover:to-red-600 active:from-red-700 active:to-red-800 text-white font-extrabold text-2xl md:text-3xl tracking-widest shadow-2xl shadow-red-600/40 border-4 border-red-400/50 flex flex-col items-center justify-center gap-2 transition-all buzz-btn-active">
                     <i class="fa-solid fa-hand-pointer text-4xl"></i>
                     <span>押 す ! (Space)</span>
                 </button>
 
-                <!-- Host Controls (Judge / Next Question) -->
                 <div id="hostControls" class="w-full flex flex-wrap gap-3 justify-center mt-2 border-t border-slate-700/60 pt-4">
                     <button id="nextQBtn" class="flex-1 min-w-[160px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition text-base flex items-center justify-center gap-2">
                         <i class="fa-solid fa-play"></i> <span id="nextQBtnText">問題スタート / 次の問題</span>
@@ -177,13 +155,11 @@
                     </div>
                 </div>
 
-                <!-- Answer Reveal Area -->
                 <div id="answerArea" class="hidden w-full bg-slate-900/90 border border-slate-700 rounded-xl p-4 text-center mt-2">
                     <div class="text-xs text-slate-400 mb-1">正解</div>
                     <div id="answerText" class="text-2xl font-black text-amber-400">---</div>
                     <div id="explanationText" class="text-xs text-slate-300 mt-2"></div>
                 </div>
-
             </div>
 
         </section>
@@ -207,10 +183,7 @@
                     <span><i class="fa-solid fa-trophy text-amber-400 mr-2"></i>スコアボード</span>
                     <button id="resetScoreBtn" class="text-xs text-slate-400 hover:text-red-400 transition"><i class="fa-solid fa-rotate-right"></i> リセット</button>
                 </h2>
-                
-                <div id="scoreboardList" class="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
-                    <!-- Dynamic Score Items -->
-                </div>
+                <div id="scoreboardList" class="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1"></div>
             </div>
 
             <!-- Options & Display Settings Box -->
@@ -219,14 +192,12 @@
                     <i class="fa-solid fa-sliders text-indigo-400 mr-2"></i>表示・動作設定
                 </h2>
                 
-                <!-- Display Text Toggle Option -->
                 <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-200">
                     <input type="checkbox" id="showTextWhileReadingCheckbox" checked class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 bg-slate-800 border-slate-700">
                     <span>問読み中の問題文テキストを表示する</span>
                 </label>
                 <p class="text-[11px] text-slate-400 pl-6">OFFにすると文字を非表示にし、音声のみで競技クイズ練習ができます。</p>
 
-                <!-- Display Buzz Cut Point Toggle Option -->
                 <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-200 mt-1">
                     <input type="checkbox" id="showBuzzPointCheckbox" checked class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 bg-slate-800 border-slate-700">
                     <span>早押し時の問読みストップ位置を表示する</span>
@@ -234,14 +205,13 @@
                 <p class="text-[11px] text-slate-400 pl-6">OFFにすると早押しした場所のテキスト（〜までの位置）を非表示にします。</p>
             </div>
 
-            <!-- CSV Problem Load / Management Box -->
+            <!-- CSV Problem Load Box -->
             <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
                 <h2 class="text-sm font-bold text-slate-300 border-b border-slate-700 pb-2 flex items-center justify-between">
                     <span><i class="fa-solid fa-file-csv text-emerald-400 mr-2"></i>問題データの読み込み</span>
                     <span id="loadedCount" class="text-xs bg-slate-700 px-2 py-0.5 rounded text-emerald-300">5問 セット中</span>
                 </h2>
 
-                <!-- Sample Questions Choice Toggle -->
                 <div class="bg-slate-900/60 border border-slate-700/50 rounded-xl p-3 flex flex-col gap-2">
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-200">
                         <input type="checkbox" id="useSampleCheckbox" checked class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 bg-slate-800 border-slate-700">
@@ -250,7 +220,6 @@
                     <p class="text-[11px] text-slate-400 pl-6">チェックを外すと自分で用意したCSVのみを使用できます。</p>
                 </div>
 
-                <!-- CSV File Drag & Drop Target -->
                 <div id="dropZone" class="border-2 border-dashed border-slate-600 hover:border-indigo-400 rounded-xl p-4 text-center cursor-pointer transition bg-slate-900/40 flex flex-col items-center gap-2 group">
                     <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 group-hover:text-indigo-400 transition"></i>
                     <p class="text-xs text-slate-300 font-medium">CSVファイルをドロップ または クリックして選択</p>
@@ -294,14 +263,12 @@
 
     </main>
 
-    <!-- Footer -->
     <footer class="border-t border-slate-800 text-center py-4 text-xs text-slate-600">
         Quiz Engine Live &copy; 2026 - Powered by Web Speech API
     </footer>
 
     <!-- App Main Logic JavaScript -->
     <script>
-        // Preset sample questions
         const PRESET_QUESTIONS = [
             { question: "日本で一番高い山は富士山ですが、日本で一番広い湖は何でしょう？", answer: "琵琶湖", explanation: "滋賀県にある湖で、面積は約670平方キロメートルです。", genre: "地理" },
             { question: "「吾輩は猫である」や「坊っちゃん」などの名作を残した、日本の小説家は誰でしょう？", answer: "夏目漱石", explanation: "千円札の肖像としても親しまれました。", genre: "文学" },
@@ -310,7 +277,7 @@
             { question: "慣用句で、非常に短い時間のことを「一」という漢字を使った四字熟語で何というでしょう？", answer: "一瞬 / 一朝一夕", explanation: "わずかな時間を表す言葉です。", genre: "言葉" }
         ];
 
-        // State Management
+        // System State
         let questions = [...PRESET_QUESTIONS];
         let currentQIndex = -1;
         let isReading = false;
@@ -319,31 +286,25 @@
         let speechSynth = window.speechSynthesis;
         let spokenCharCount = 0;
         let mode = 'solo';
-        let currentRoomId = null;
-        let isHost = true;
         let fallbackTimer = null;
         let availableVoices = [];
 
-        // Global reference to prevent Chrome SpeechUtterance Garbage Collection bug
-        window.activeUtterance = null;
-
-        // Player / Firebase state
+        // Player State
         let myPlayerName = 'プレイヤー ' + Math.floor(Math.random() * 900 + 100);
         let scores = {};
         scores[myPlayerName] = 0;
 
-        // Firebase References
-        let db = null;
-        let auth = null;
-        let roomUnsubscribe = null;
+        // PeerJS P2P Online State
+        let peer = null;
+        let peerConn = null;
+        let isHost = true;
 
-        // DOM Element Cache
+        // DOM Cache
         const changeNameBtn = document.getElementById('changeNameBtn');
         const nameModal = document.getElementById('nameModal');
         const nameModalInput = document.getElementById('nameModalInput');
         const cancelNameModalBtn = document.getElementById('cancelNameModalBtn');
         const saveNameModalBtn = document.getElementById('saveNameModalBtn');
-
         const buzzBtn = document.getElementById('buzzBtn');
         const questionDisplayText = document.getElementById('questionDisplayText');
         const nextQBtn = document.getElementById('nextQBtn');
@@ -384,8 +345,8 @@
         const roomCodeInput = document.getElementById('roomCodeInput');
         const roomStatusText = document.getElementById('roomStatusText');
 
-        // Load speech voices
-        function loadSpeechVoices() {
+        // Voice Engine Initialization
+        function loadVoices() {
             if ('speechSynthesis' in window) {
                 availableVoices = speechSynth.getVoices();
                 if (speechSynth.onvoiceschanged !== undefined) {
@@ -395,37 +356,30 @@
                 }
             }
         }
-        loadSpeechVoices();
+        loadVoices();
 
-        // Initial setup
         playerNameDisplay.textContent = myPlayerName;
         totalQNumEl.textContent = questions.length;
         currentQNumEl.textContent = "0";
         renderScoreboard();
 
-        // Modal Name Change Actions
+        // Player Name Change Modal Actions
         changeNameBtn.addEventListener('click', () => {
             nameModalInput.value = myPlayerName;
             nameModal.classList.remove('hidden');
             nameModalInput.focus();
         });
 
-        cancelNameModalBtn.addEventListener('click', () => {
-            nameModal.classList.add('hidden');
-        });
+        cancelNameModalBtn.addEventListener('click', () => nameModal.classList.add('hidden'));
+        saveNameModalBtn.addEventListener('click', saveName);
+        nameModalInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); });
 
-        saveNameModalBtn.addEventListener('click', savePlayerNameFromModal);
-        nameModalInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') savePlayerNameFromModal();
-        });
-
-        function savePlayerNameFromModal() {
+        function saveName() {
             const newName = nameModalInput.value.trim();
             if (newName) {
                 const oldName = myPlayerName;
                 myPlayerName = newName;
                 playerNameDisplay.textContent = myPlayerName;
-
                 if (scores[oldName] !== undefined) {
                     scores[myPlayerName] = scores[oldName];
                     delete scores[oldName];
@@ -437,37 +391,12 @@
             }
         }
 
-        // --- Firebase Initialization ---
-        async function initFirebase() {
-            if (typeof __firebase_config !== 'undefined' && window.FirebaseSDK) {
-                try {
-                    const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, getFirestore } = window.FirebaseSDK;
-                    const firebaseConfig = JSON.parse(__firebase_config);
-                    const app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (err) {
-                    console.warn("Firebase initialization skipped: ", err);
-                }
-            }
-        }
-        initFirebase();
-
-        // Find optimal Japanese voice
         function getJapaneseVoice() {
-            if (!availableVoices || availableVoices.length === 0) {
-                availableVoices = speechSynth.getVoices();
-            }
+            if (!availableVoices || availableVoices.length === 0) availableVoices = speechSynth.getVoices();
             return availableVoices.find(v => v.lang === 'ja-JP' || v.lang === 'ja_JP' || v.lang.startsWith('ja')) || null;
         }
 
-        // --- Standard Speech Reading Core ---
+        // Web Speech API Reading Engine
         function startReadingQuestion(text) {
             stopSpeech();
             isReading = true;
@@ -493,10 +422,8 @@
                     utterance.lang = 'ja-JP';
                     utterance.rate = parseFloat(speechRateSelect.value);
 
-                    const jaVoice = getJapaneseVoice();
-                    if (jaVoice) {
-                        utterance.voice = jaVoice;
-                    }
+                    const voice = getJapaneseVoice();
+                    if (voice) utterance.voice = voice;
 
                     utterance.onboundary = (event) => {
                         if (event.charIndex !== undefined) {
@@ -508,9 +435,7 @@
                     utterance.onend = () => {
                         if (!isBuzzed) {
                             isReading = false;
-                            if (showTextWhileReadingCheckbox.checked) {
-                                questionDisplayText.textContent = text;
-                            }
+                            if (showTextWhileReadingCheckbox.checked) questionDisplayText.textContent = text;
                             updateStatusBadge('waiting', '読み上げ完了');
                             speakerIcon.className = "fa-solid fa-volume-xmark text-slate-500";
                             speechWave.classList.add('opacity-30');
@@ -518,17 +443,12 @@
                     };
 
                     window.activeUtterance = utterance;
-
                     speakerIcon.className = "fa-solid fa-volume-high text-red-400 animate-pulse";
                     speechWave.classList.remove('opacity-30');
-
                     speechSynth.speak(utterance);
-                } catch(e) {
-                    console.log("Audio speech error.");
-                }
+                } catch(e) {}
             }
 
-            // Text reveal timer
             const charDelay = (180 / parseFloat(speechRateSelect.value));
             fallbackTimer = setInterval(() => {
                 if (!isReading || isBuzzed) {
@@ -555,33 +475,29 @@
 
         function stopSpeech() {
             if (fallbackTimer) clearInterval(fallbackTimer);
-            if ('speechSynthesis' in window) {
-                speechSynth.cancel();
-            }
+            if ('speechSynthesis' in window) speechSynth.cancel();
             window.activeUtterance = null;
             isReading = false;
             speakerIcon.className = "fa-solid fa-volume-xmark text-slate-500";
             speechWave.classList.add('opacity-30');
         }
 
-        // Test speech audio directly
         testAudioBtn.addEventListener('click', () => {
             if (!('speechSynthesis' in window)) {
-                alert('お使いのブラウザは音声読み上げ機能（Web Speech API）に対応していません。');
+                alert('お使いのブラウザはWeb Speech APIに対応していません。');
                 return;
             }
             stopSpeech();
             speechSynth.resume();
-            const testUtterance = new SpeechSynthesisUtterance("問読みのテスト音声を再生しています。");
-            testUtterance.lang = 'ja-JP';
-            testUtterance.rate = parseFloat(speechRateSelect.value);
-            const jaVoice = getJapaneseVoice();
-            if (jaVoice) testUtterance.voice = jaVoice;
-            window.activeUtterance = testUtterance;
-            speechSynth.speak(testUtterance);
+            const utterance = new SpeechSynthesisUtterance("問読みのテスト音声を再生しています。");
+            utterance.lang = 'ja-JP';
+            utterance.rate = parseFloat(speechRateSelect.value);
+            const voice = getJapaneseVoice();
+            if (voice) utterance.voice = voice;
+            speechSynth.speak(utterance);
         });
 
-        // --- Buzz Button Logic ---
+        // Buzz Action
         function handleBuzz(pName = myPlayerName) {
             if (isBuzzed || currentQIndex < 0) return;
 
@@ -604,26 +520,16 @@
             buzzedNotice.classList.remove('hidden');
             updateStatusBadge('buzzed', '早押し発生！');
 
-            if (mode === 'multi' && currentRoomId && db) {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                const roomRef = window.FirebaseSDK.doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-                window.FirebaseSDK.updateDoc(roomRef, {
-                    buzzedBy: pName,
-                    buzzCharIndex: spokenCharCount,
-                    status: 'buzzed'
-                }).catch(console.error);
+            if (mode === 'multi' && peerConn) {
+                peerConn.send({ type: 'BUZZ', player: pName, charIndex: spokenCharCount });
             }
         }
 
         showBuzzPointCheckbox.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                buzzPointContainer.classList.remove('hidden');
-            } else {
-                buzzPointContainer.classList.add('hidden');
-            }
+            if (e.target.checked) buzzPointContainer.classList.remove('hidden');
+            else buzzPointContainer.classList.add('hidden');
         });
 
-        // --- Next Question Flow ---
         function loadNextQuestion() {
             if (questions.length === 0) {
                 alert('問題データがありません。CSVを読み込むか、「サンプル問題を使用する」にチェックを入れてください。');
@@ -645,14 +551,8 @@
 
             answerArea.classList.add('hidden');
 
-            if (mode === 'multi' && isHost && currentRoomId && db) {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                const roomRef = window.FirebaseSDK.doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-                window.FirebaseSDK.updateDoc(roomRef, {
-                    currentQIndex: currentQIndex,
-                    status: 'reading',
-                    buzzedBy: null
-                }).catch(console.error);
+            if (mode === 'multi' && isHost && peerConn) {
+                peerConn.send({ type: 'NEXT_Q', qIndex: currentQIndex });
             }
 
             startReadingQuestion(q.question);
@@ -676,7 +576,6 @@
             statusBadge.innerHTML = `<span class="${dotClass}"></span> ${text}`;
         }
 
-        // --- Scoring & Judgement ---
         function judgeAnswer(isCorrect) {
             if (!answerRevealed) {
                 alert('正誤判定を行う前に「答えを表示」を押してください。');
@@ -686,27 +585,17 @@
             if (currentQIndex < 0 || !questions[currentQIndex]) return;
 
             const targetPlayer = buzzerName.textContent || myPlayerName;
-            
             if (scores[targetPlayer] === undefined) scores[targetPlayer] = 0;
 
-            if (isCorrect) {
-                scores[targetPlayer] += 10;
-            } else {
-                scores[targetPlayer] -= 10;
-            }
+            if (isCorrect) scores[targetPlayer] += 10;
+            else scores[targetPlayer] -= 10;
 
             renderScoreboard();
-
             judgeCorrectBtn.disabled = true;
             judgeWrongBtn.disabled = true;
 
-            if (mode === 'multi' && isHost && currentRoomId && db) {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                const roomRef = window.FirebaseSDK.doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-                window.FirebaseSDK.updateDoc(roomRef, {
-                    scores: scores,
-                    status: isCorrect ? 'answered' : 'resume'
-                }).catch(console.error);
+            if (mode === 'multi' && peerConn) {
+                peerConn.send({ type: 'SCORE', scores: scores });
             }
         }
 
@@ -746,7 +635,6 @@
             });
         }
 
-        // Sample Checkbox Toggle
         useSampleCheckbox.addEventListener('change', (e) => {
             if (e.target.checked) {
                 questions = [...PRESET_QUESTIONS];
@@ -766,7 +654,6 @@
             stopSpeech();
         });
 
-        // Clear button
         clearQuestionsBtn.addEventListener('click', () => {
             useSampleCheckbox.checked = false;
             questions = [];
@@ -778,7 +665,6 @@
             stopSpeech();
         });
 
-        // --- CSV Import Handlers ---
         function parseCSV(file) {
             Papa.parse(file, {
                 header: false,
@@ -817,73 +703,48 @@
             });
         }
 
-        // --- Multi-player Room Synchronization ---
-        async function createRoom() {
-            if (!db) {
-                alert('オンライン機能の初期化中です。しばらく待ってから再試行してください。');
-                return;
-            }
-            const roomId = Math.random().toString(36).substr(2, 5).toUpperCase();
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-            const roomRef = window.FirebaseSDK.doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+        // Online Multi Player (PeerJS)
+        function initPeerRoom(customId = null) {
+            const roomCode = customId || Math.random().toString(36).substr(2, 5).toUpperCase();
+            peer = new Peer('quizroom_' + roomCode);
 
-            await window.FirebaseSDK.setDoc(roomRef, {
-                roomId: roomId,
-                host: myPlayerName,
-                questions: questions,
-                currentQIndex: -1,
-                status: 'waiting',
-                buzzedBy: null,
-                scores: scores
+            peer.on('open', (id) => {
+                const roomName = id.replace('quizroom_', '');
+                roomStatusText.textContent = `ルームID: [ ${roomName} ] で待機中（参加者を待っています）`;
             });
 
-            joinRoom(roomId, true);
+            peer.on('connection', (conn) => {
+                peerConn = conn;
+                setupPeerDataHandler(conn);
+                roomStatusText.textContent = `対戦相手が参加しました！`;
+            });
         }
 
-        function joinRoom(roomId, asHost = false) {
-            if (!db) return;
-            currentRoomId = roomId;
-            isHost = asHost;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-            const roomRef = window.FirebaseSDK.doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+        function joinPeerRoom(roomCode) {
+            peer = new Peer();
+            peer.on('open', () => {
+                const conn = peer.connect('quizroom_' + roomCode.toUpperCase());
+                peerConn = conn;
+                setupPeerDataHandler(conn);
+                roomStatusText.textContent = `ルーム [ ${roomCode} ] に参加しました！`;
+            });
+        }
 
-            if (roomUnsubscribe) roomUnsubscribe();
-
-            roomUnsubscribe = window.FirebaseSDK.onSnapshot(roomRef, (snapshot) => {
-                if (!snapshot.exists()) {
-                    roomStatusText.textContent = '指定されたルームが存在しません。';
-                    return;
-                }
-
-                const data = snapshot.data();
-                roomStatusText.textContent = `ルーム [${data.roomId}] に接続中 (${asHost ? 'ホスト' : '参加者'})`;
-
-                if (data.questions && data.questions.length > 0) {
-                    questions = data.questions;
-                    totalQNumEl.textContent = questions.length;
-                }
-
-                if (data.scores) {
+        function setupPeerDataHandler(conn) {
+            conn.on('data', (data) => {
+                if (data.type === 'BUZZ') {
+                    handleBuzz(data.player);
+                } else if (data.type === 'NEXT_Q') {
+                    currentQIndex = data.qIndex;
+                    if (questions[currentQIndex]) startReadingQuestion(questions[currentQIndex].question);
+                } else if (data.type === 'SCORE') {
                     scores = data.scores;
                     renderScoreboard();
                 }
-
-                if (data.status === 'buzzed' && data.buzzedBy && !isBuzzed) {
-                    handleBuzz(data.buzzedBy);
-                }
-
-                if (!isHost && data.currentQIndex !== currentQIndex && data.currentQIndex >= 0) {
-                    currentQIndex = data.currentQIndex;
-                    currentQNumEl.textContent = currentQIndex + 1;
-                    const q = questions[currentQIndex];
-                    if (q) startReadingQuestion(q.question);
-                }
-            }, (error) => {
-                console.error("Room Sync Error:", error);
             });
         }
 
-        // --- Event Listeners ---
+        // Event Listeners
         buzzBtn.addEventListener('click', () => handleBuzz(myPlayerName));
 
         window.addEventListener('keydown', (e) => {
@@ -951,10 +812,10 @@
             multiRoomBox.classList.add('flex');
         });
 
-        createRoomBtn.addEventListener('click', createRoom);
+        createRoomBtn.addEventListener('click', () => initPeerRoom());
         joinRoomBtn.addEventListener('click', () => {
             const code = roomCodeInput.value.trim().toUpperCase();
-            if (code) joinRoom(code, false);
+            if (code) joinPeerRoom(code);
         });
 
     </script>
