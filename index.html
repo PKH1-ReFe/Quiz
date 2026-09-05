@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Engine Live - 競技クイズシステム</title>
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- PeerJS for P2P Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-indigo: #6366f1;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --text-primary: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Mobile-First Layout Header */
+        header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-badge {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #dc2626, #f59e0b);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        header h1 {
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        header p {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .btn-player-name {
+            background: #334155;
+            border: 1px solid var(--border-color);
+            color: #cbd5e1;
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        /* Container Layout for Mobile & Desktop */
+        .main-layout {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        @media (min-width: 768px) {
+            .main-layout {
+                max-width: 900px;
+                display: grid;
+                grid-template-columns: 1.4fr 1fr;
+                gap: 16px;
+            }
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-center {
+            align-items: center;
+        }
+
+        .card-header, .card-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            padding-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: bold;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            padding-bottom: 6px;
+        }
+
+        .counter {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .badge-idle { background: #334155; }
+        .badge-reading { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
+        .badge-buzzed { background: #450a0a; color: #fca5a5; border: 1px solid #b91c1c; }
+
+        .question-box {
+            min-height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.5;
+            padding: 6px 0;
+        }
+
+        @media (min-width: 768px) {
+            .question-box { font-size: 21px; min-height: 110px; }
+        }
+
+        .buzz-alert {
+            background: rgba(69, 10, 10, 0.9);
+            border: 1px solid var(--accent-red);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            color: #fca5a5;
+        }
+
+        .buzz-alert-title { font-size: 16px; font-weight: bold; }
+        .buzz-alert-sub { font-size: 11px; margin-top: 3px; opacity: 0.9; }
+
+        .audio-controls {
+            border-top: 1px solid var(--border-color);
+            padding-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .audio-settings {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Big Mobile Buzz Button */
+        .btn-buzz {
+            width: 100%;
+            height: 120px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ef4444, #b91c1c);
+            border: 4px solid rgba(248, 113, 113, 0.5);
+            color: #fff;
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+            transition: transform 0.08s;
+        }
+
+        .btn-buzz:active {
+            transform: scale(0.95);
+        }
+
+        @media (min-width: 768px) {
+            .btn-buzz { height: 140px; font-size: 28px; }
+        }
+
+        .button-row {
+            width: 100%;
+            display: flex;
+            gap: 8px;
+        }
+
+        .flex-1 { flex: 1; }
+        .flex-2 { flex: 2; }
+        .mt-8 { margin-top: 8px; }
+
+        .btn {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: #fff;
+            transition: background 0.2s;
+        }
+
+        .btn-sm { padding: 5px 8px; font-size: 11px; }
+        .btn-xs { padding: 3px 6px; font-size: 10px; }
+
+        .btn-indigo { background: var(--accent-indigo); }
+        .btn-indigo:hover { background: #4f46e5; }
+        .btn-amber { background: var(--accent-amber); }
+        .btn-amber:hover { background: #d97706; }
+        .btn-emerald { background: var(--accent-emerald); }
+        .btn-emerald:hover { background: #059669; }
+        .btn-rose { background: var(--accent-rose); }
+        .btn-rose:hover { background: #e11d48; }
+        .btn-slate { background: #334155; color: #cbd5e1; }
+        .btn-slate:hover { background: #475569; color: #fff; }
+
+        .btn:disabled {
+            background: #1e293b !important;
+            color: #475569 !important;
+            border: 1px solid #334155;
+            cursor: not-allowed;
+            box-shadow: none !important;
+        }
+
+        .answer-card {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .answer-label { font-size: 11px; color: var(--text-muted); }
+        .answer-text { font-size: 20px; font-weight: 800; color: var(--accent-amber); margin: 4px 0; }
+        .explanation-text { font-size: 11px; color: #cbd5e1; }
+
+        .scoreboard {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .score-item {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        /* メンバーリスト表示用スタイル */
+        .member-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .member-badge {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid var(--accent-indigo);
+            color: #e0e7ff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .member-badge.is-host {
+            border-color: var(--accent-amber);
+            background: rgba(245, 158, 11, 0.2);
+            color: #fef3c7;
+        }
+
+        .member-badge.is-me {
+            font-weight: bold;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .checkbox-group input {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--accent-indigo);
+        }
+
+        .checkbox-desc {
+            font-size: 10px;
+            color: var(--text-muted);
+            padding-left: 23px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #475569;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            background: rgba(15, 23, 42, 0.3);
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Mode Tabs */
+        .tab-row {
+            display: flex;
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 3px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 4px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 6px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-indigo);
+            color: #fff;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.85);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal-box {
+            background: #1e293b;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+            width: 100%;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .modal-box input {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+
+        select, input[type="text"] {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 4px 6px;
+            border-radius: 6px;
+            font-size: 11px;
+        }
+
+        .hidden, .hidden-input { display: none !important; }
+
+        footer {
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            padding: 10px;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <div class="logo-badge">⚡</div>
+            <div>
+                <h1>Quiz Engine Live</h1>
+                <p>競技クイズ オンラインシステム</p>
+            </div>
+        </div>
+        <button id="changeNameBtn" class="btn-player-name">
+            👤 <span id="playerNameDisplay">ゲスト</span> ✏️
+        </button>
+    </header>
+
+    <!-- 名前変更モーダル -->
+    <div id="nameModal" class="modal-backdrop hidden">
+        <div class="modal-box">
+            <h3 style="font-size: 14px;">プレイヤー名の変更</h3>
+            <input type="text" id="nameModalInput" placeholder="名前を入力">
+            <div class="modal-actions">
+                <button id="cancelNameModalBtn" class="btn btn-slate btn-sm">キャンセル</button>
+                <button id="saveNameModalBtn" class="btn btn-indigo btn-sm">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main class="main-layout">
+
+        <!-- 左カラム：クイズ盤面 ＆ 早押しボタン -->
+        <div class="column">
+            <div class="card">
+                <div class="card-header">
+                    <span id="statusBadge" class="status-badge badge-idle">待機中</span>
+                    <div class="counter">Q. <span id="currentQNum">0</span> / <span id="totalQNum">0</span></div>
+                </div>
+
+                <div class="question-box">
+                    <p id="questionDisplayText">「次の問題へ」を押すと問読みが始まります。</p>
+                </div>
+
+                <div id="buzzedNotice" class="buzz-alert hidden">
+                    <div class="buzz-alert-title"><span id="buzzerName">誰か</span> が早押ししました！</div>
+                    <div id="buzzPointContainer" class="buzz-alert-sub">ストップ位置: 「<span id="buzzPointText"></span>」</div>
+                </div>
+
+                <div class="audio-controls">
+                    <div>🔊 ブラウザ問読み</div>
+                    <div class="audio-settings">
+                        <button id="testAudioBtn" class="btn btn-indigo btn-xs">音声テスト</button>
+                        <select id="speechRate">
+                            <option value="0.8">0.8x</option>
+                            <option value="1.0" selected>1.0x</option>
+                            <option value="1.3">1.3x</option>
+                            <option value="1.6">1.6x</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-center">
+                <button id="buzzBtn" class="btn-buzz">押 す ! (Space)</button>
+
+                <div class="button-row mt-8">
+                    <button id="nextQBtn" class="btn btn-indigo flex-2">▶ 次の問題へ</button>
+                    <button id="showAnswerBtn" class="btn btn-amber flex-1">👁 答え</button>
+                </div>
+
+                <div class="button-row">
+                    <button id="judgeCorrectBtn" class="btn btn-emerald flex-1" disabled>⭕ 正解 (+10)</button>
+                    <button id="judgeWrongBtn" class="btn btn-rose flex-1" disabled>❌ 不正解 (-10)</button>
+                </div>
+
+                <div id="answerArea" class="answer-card hidden">
+                    <div class="answer-label">正解</div>
+                    <div id="answerText" class="answer-text">---</div>
+                    <div id="explanationText" class="explanation-text"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右カラム：スコアボード ＆ マルチプレイ設定 ＆ CSV -->
+        <div class="column">
+            <!-- モード切り替えタブ -->
+            <div class="card" style="padding: 10px;">
+                <div class="tab-row">
+                    <button id="tabSolo" class="tab-btn active">ソロ練習</button>
+                    <button id="tabMulti" class="tab-btn">ルーム対戦</button>
+                </div>
+                <!-- マルチプレイ用コントロール -->
+                <div id="multiControlBox" class="hidden" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 6px;">
+                        <input type="text" id="roomCodeInput" placeholder="ルームID" style="flex: 1; text-transform: uppercase;">
+                        <button id="joinRoomBtn" class="btn btn-indigo btn-sm">参加</button>
+                    </div>
+                    <button id="createRoomBtn" class="btn btn-slate btn-sm">新規ルームを作成</button>
+                    <div id="roomStatus" style="font-size: 11px; font-weight: bold; color: var(--accent-amber); text-align: center; padding: 4px; border-radius: 6px; background: rgba(15,23,42,0.6);">未接続（オフライン）</div>
+                    
+                    <!-- 参加中メンバー一覧表示エリア -->
+                    <div id="roomMemberListContainer" class="hidden" style="border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 2px;">
+                        <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                            <span>👥 参加中のメンバー (<span id="memberCount">0</span>人)</span>
+                        </div>
+                        <div id="memberList" class="member-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- スコアボード -->
+            <div class="card">
+                <div class="card-title-row">
+                    <h3 style="font-size: 13px;">🏆 スコアボード</h3>
+                    <button id="resetScoreBtn" class="btn btn-slate btn-xs">リセット</button>
+                </div>
+                <div id="scoreboardList" class="scoreboard"></div>
+            </div>
+
+            <!-- 設定 -->
+            <div class="card">
+                <h3 class="card-title">⚙️ 表示・動作設定</h3>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showTextWhileReadingCheckbox" checked>
+                    <label for="showTextWhileReadingCheckbox">問読み中のテキストを表示</label>
+                </div>
+                <div class="checkbox-group" style="margin-top: 4px;">
+                    <input type="checkbox" id="showBuzzPointCheckbox" checked>
+                    <label for="showBuzzPointCheckbox">早押しストップ位置を表示</label>
+                </div>
+            </div>
+
+            <!-- CSV問題データ -->
+            <div class="card">
+                <div class="card-title-row">
+                    <h3 style="font-size: 13px;">📁 問題CSV</h3>
+                    <span id="loadedCount" class="status-badge" style="background:#064e3b; color:#6ee7b7;">5問セット中</span>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="useSampleCheckbox" checked>
+                    <label for="useSampleCheckbox">サンプル問題を使う</label>
+                </div>
+                <div id="dropZone" class="drop-zone">
+                    CSVファイルをドロップ または タップして選択
+                    <input type="file" id="csvFileInput" accept=".csv" class="hidden-input">
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer>
+        Quiz Engine Live &copy; 2026
+    </footer>
+
+    <!-- Application Core Script -->
+    <script>
+        const PRESET_QUESTIONS = [
+            { question: "日本で一番高い山は富士山ですが、日本で一番広い湖は何でしょう？", answer: "琵琶湖", explanation: "滋賀県にある湖で、面積は約670平方キロメートルです。" },
+            { question: "「吾輩は猫である」や「坊っちゃん」などの名作を残した、日本の小説家は誰でしょう？", answer: "夏目漱石", explanation: "千円札の肖像としても親しまれました。" },
+            { question: "元素記号「Au」で表される、日本語では「金」と呼ばれる金属は何でしょう？", answer: "金（ゴールド）", explanation: "ラテン語の「Aurum（光るもの）」に由来します。" },
+            { question: "サッカーの1チームのピッチ上の選手数は11人ですが、バスケットボールの1チームのコート上の選手数は何人でしょう？", answer: "5人", explanation: "ベンチメンバーを含めて最大12名登録できます。" },
+            { question: "慣用句で、非常に短い時間のことを「一」という漢字を使った四字熟語で何というでしょう？", answer: "一瞬 / 一朝一夕", explanation: "わずかな時間を表す言葉です。" }
+        ];
+
+        let questions = [...PRESET_QUESTIONS];
+        let currentQIndex = -1;
+        let isReading = false;
+        let isBuzzed = false;
+        let answerRevealed = false;
+        let spokenCharCount = 0;
+        let fallbackTimer = null;
+        let availableVoices = [];
+
+        let myPlayerName = 'プレイヤー ' + Math.floor(Math.random() * 900 + 100);
+        let scores = {};
+        scores[myPlayerName] = 0;
+
+        let peer = null;
+        let conn = null;
+        let connections = []; // ホストが保持するクライアント接続一覧
+        let roomMembers = []; // ルーム参加者名一覧 [{name: 'xxx', isHost: true}, ...]
+        let isHost = true;
+        let gameMode = 'solo';
+
+        const changeNameBtn = document.getElementById('changeNameBtn');
+        const nameModal = document.getElementById('nameModal');
+        const nameModalInput = document.getElementById('nameModalInput');
+        const cancelNameModalBtn = document.getElementById('cancelNameModalBtn');
+        const saveNameModalBtn = document.getElementById('saveNameModalBtn');
+        const buzzBtn = document.getElementById('buzzBtn');
+        const questionDisplayText = document.getElementById('questionDisplayText');
+        const nextQBtn = document.getElementById('nextQBtn');
+        const judgeCorrectBtn = document.getElementById('judgeCorrectBtn');
+        const judgeWrongBtn = document.getElementById('judgeWrongBtn');
+        const showAnswerBtn = document.getElementById('showAnswerBtn');
+        const answerArea = document.getElementById('answerArea');
+        const answerText = document.getElementById('answerText');
+        const explanationText = document.getElementById('explanationText');
+        const statusBadge = document.getElementById('statusBadge');
+        const currentQNumEl = document.getElementById('currentQNum');
+        const totalQNumEl = document.getElementById('totalQNum');
+        const speechRateSelect = document.getElementById('speechRate');
+        const testAudioBtn = document.getElementById('testAudioBtn');
+        const buzzedNotice = document.getElementById('buzzedNotice');
+        const buzzerName = document.getElementById('buzzerName');
+        const buzzPointText = document.getElementById('buzzPointText');
+        const buzzPointContainer = document.getElementById('buzzPointContainer');
+        const scoreboardList = document.getElementById('scoreboardList');
+        const playerNameDisplay = document.getElementById('playerNameDisplay');
+        const showTextWhileReadingCheckbox = document.getElementById('showTextWhileReadingCheckbox');
+        const showBuzzPointCheckbox = document.getElementById('showBuzzPointCheckbox');
+        const csvFileInput = document.getElementById('csvFileInput');
+        const dropZone = document.getElementById('dropZone');
+        const loadedCount = document.getElementById('loadedCount');
+        const useSampleCheckbox = document.getElementById('useSampleCheckbox');
+        const resetScoreBtn = document.getElementById('resetScoreBtn');
+        const tabSolo = document.getElementById('tabSolo');
+        const tabMulti = document.getElementById('tabMulti');
+        const multiControlBox = document.getElementById('multiControlBox');
+        const roomCodeInput = document.getElementById('roomCodeInput');
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const roomStatus = document.getElementById('roomStatus');
+        const roomMemberListContainer = document.getElementById('roomMemberListContainer');
+        const memberList = document.getElementById('memberList');
+        const memberCount = document.getElementById('memberCount');
+
+        playerNameDisplay.textContent = myPlayerName;
+        totalQNumEl.textContent = questions.length;
+        renderScoreboard();
+
+        function loadVoices() {
+            if ('speechSynthesis' in window) {
+                availableVoices = window.speechSynthesis.getVoices();
+                window.speechSynthesis.onvoiceschanged = () => { availableVoices = window.speechSynthesis.getVoices(); };
+            }
+        }
+        loadVoices();
+
+        function getJapaneseVoice() {
+            if (!availableVoices.length && 'speechSynthesis' in window) availableVoices = window.speechSynthesis.getVoices();
+            return availableVoices.find(v => v.lang.includes('ja')) || null;
+        }
+
+        changeNameBtn.addEventListener('click', () => { nameModalInput.value = myPlayerName; nameModal.classList.remove('hidden'); });
+        cancelNameModalBtn.addEventListener('click', () => nameModal.classList.add('hidden'));
+        saveNameModalBtn.addEventListener('click', saveName);
+        function saveName() {
+            const val = nameModalInput.value.trim();
+            if (val) {
+                const old = myPlayerName;
+                myPlayerName = val;
+                playerNameDisplay.textContent = val;
+                scores[myPlayerName] = scores[old] || 0;
+                if (old !== val) delete scores[old];
+                
+                // メンバーリストの自分の名前も更新
+                const me = roomMembers.find(m => m.name === old);
+                if (me) me.name = val;
+
+                renderScoreboard();
+                renderMemberList();
+                if (gameMode === 'multi') broadcastRoomState();
+
+                nameModal.classList.add('hidden');
+            }
+        }
+
+        tabSolo.addEventListener('click', () => {
+            gameMode = 'solo';
+            tabSolo.className = 'tab-btn active';
+            tabMulti.className = 'tab-btn';
+            multiControlBox.classList.add('hidden');
+            roomMemberListContainer.classList.add('hidden');
+            if (peer) { peer.destroy(); peer = null; }
+            connections = [];
+            roomMembers = [];
+        });
+
+        tabMulti.addEventListener('click', () => {
+            gameMode = 'multi';
+            tabMulti.className = 'tab-btn active';
+            tabSolo.className = 'tab-btn';
+            multiControlBox.classList.remove('hidden');
+        });
+
+        createRoomBtn.addEventListener('click', () => {
+            if (peer) peer.destroy();
+            connections = [];
+            const code = Math.random().toString(36).substr(2, 5).toUpperCase();
+            peer = new Peer('quiz_' + code);
+
+            peer.on('open', () => {
+                isHost = true;
+                roomStatus.style.color = "#34d399";
+                roomStatus.textContent = `🟢 ルーム作成！ ID: ${code}`;
+                roomMemberListContainer.classList.remove('hidden');
+
+                // 自身をメンバーに追加
+                roomMembers = [{ name: myPlayerName, isHost: true }];
+                if (!(myPlayerName in scores)) scores[myPlayerName] = 0;
+
+                renderMemberList();
+                renderScoreboard();
+            });
+
+            peer.on('connection', (c) => {
+                connections.push(c);
+                setupHostConnection(c);
+            });
+
+            peer.on('error', (err) => {
+                roomStatus.style.color = "#f87171";
+                roomStatus.textContent = `エラー: ルーム作成失敗`;
+            });
+        });
+
+        joinRoomBtn.addEventListener('click', () => {
+            const code = roomCodeInput.value.trim().toUpperCase();
+            if (!code) return alert('ルームIDを入力してください');
+            if (peer) peer.destroy();
+            peer = new Peer();
+
+            peer.on('open', () => {
+                isHost = false;
+                conn = peer.connect('quiz_' + code);
+                setupClientConnection();
+                roomStatus.style.color = "#fbbf24";
+                roomStatus.textContent = `ルーム [ ${code} ] に接続中...`;
+            });
+
+            peer.on('error', (err) => {
+                roomStatus.style.color = "#f87171";
+                roomStatus.textContent = `接続エラー: 部屋が存在しないか失敗しました`;
+            });
+        });
+
+        // ホスト側の各クライアントとの接続制御
+        function setupHostConnection(c) {
+            c.on('open', () => {
+                roomStatus.style.color = "#34d399";
+                roomStatus.textContent = `🟢 プレイヤーが接続しました！`;
+                // 接続直後に最新の部屋状態（メンバー・スコア）を送信
+                broadcastRoomState();
+            });
+
+            c.on('data', (data) => {
+                handleIncomingData(data);
+            });
+
+            c.on('close', () => {
+                connections = connections.filter(conn => conn !== c);
+            });
+        }
+
+        // クライアント側のホストとの接続制御
+        function setupClientConnection() {
+            conn.on('open', () => {
+                roomStatus.style.color = "#34d399";
+                roomStatus.textContent = '🟢 オンラインルーム 接続完了！';
+                roomMemberListContainer.classList.remove('hidden');
+
+                // ホストへ自分が参加したことを通知
+                conn.send({ type: 'JOIN', name: myPlayerName });
+            });
+
+            conn.on('data', (data) => {
+                handleIncomingData(data);
+            });
+
+            conn.on('close', () => {
+                roomStatus.style.color = "#f87171";
+                roomStatus.textContent = '❌ ホストとの接続が切断されました';
+            });
+        }
+
+        // 受信データの一括ハンドリング
+        function handleIncomingData(data) {
+            if (data.type === 'JOIN') {
+                // 新規参加者の処理（ホスト時）
+                if (!(data.name in scores)) scores[data.name] = 0;
+                if (!roomMembers.some(m => m.name === data.name)) {
+                    roomMembers.push({ name: data.name, isHost: false });
+                }
+                renderMemberList();
+                renderScoreboard();
+                if (isHost) broadcastRoomState();
+            }
+            else if (data.type === 'ROOM_STATE') {
+                // ホストから送られてくるメンバーリストとスコアの完全同期
+                roomMembers = data.members;
+                scores = data.scores;
+                renderMemberList();
+                renderScoreboard();
+            }
+            else if (data.type === 'START_Q') {
+                currentQIndex = data.qIndex;
+                questions = data.questions;
+                totalQNumEl.textContent = questions.length;
+                currentQNumEl.textContent = currentQIndex + 1;
+                startReadingQuestion(questions[currentQIndex].question, false);
+            }
+            else if (data.type === 'BUZZ') {
+                handleBuzz(data.player, false);
+            }
+            else if (data.type === 'SHOW_ANSWER') {
+                showAnswer(false);
+            }
+            else if (data.type === 'SCORE') {
+                scores = data.scores;
+                renderScoreboard();
+                if (isHost) broadcastRoomState();
+            }
+        }
+
+        // ホストから全員へルーム状態（メンバー＆スコア）の一括ブロードキャスト
+        function broadcastRoomState() {
+            const payload = {
+                type: 'ROOM_STATE',
+                members: roomMembers,
+                scores: scores
+            };
+            connections.forEach(c => {
+                if (c.open) c.send(payload);
+            });
+        }
+
+        // 参加メンバー表示の描画
+        function renderMemberList() {
+            memberList.innerHTML = '';
+            memberCount.textContent = roomMembers.length;
+
+            roomMembers.forEach(m => {
+                const badge = document.createElement('div');
+                const isMe = m.name === myPlayerName;
+                badge.className = `member-badge ${m.isHost ? 'is-host' : ''} ${isMe ? 'is-me' : ''}`;
+                
+                let label = m.name;
+                if (m.isHost) label += ' 👑';
+                if (isMe) label += ' (あなた)';
+
+                badge.textContent = label;
+                memberList.appendChild(badge);
+            });
+        }
+
+        function startReadingQuestion(text, sendToPeer = true) {
+            stopSpeech();
+            isReading = true;
+            isBuzzed = false;
+            answerRevealed = false;
+            spokenCharCount = 0;
+
+            judgeCorrectBtn.disabled = true;
+            judgeWrongBtn.disabled = true;
+
+            statusBadge.textContent = "問読み中...";
+            statusBadge.className = "status-badge badge-reading";
+            buzzedNotice.classList.add('hidden');
+            answerArea.classList.add('hidden');
+            questionDisplayText.textContent = '';
+
+            if (gameMode === 'multi' && isHost && sendToPeer) {
+                const payload = { type: 'START_Q', qIndex: currentQIndex, questions: questions };
+                connections.forEach(c => { if (c.open) c.send(payload); });
+            }
+
+            if ('speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.resume();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'ja-JP';
+                    utterance.rate = parseFloat(speechRateSelect.value);
+                    const voice = getJapaneseVoice();
+                    if (voice) utterance.voice = voice;
+
+                    utterance.onboundary = (e) => {
+                        if (e.charIndex !== undefined) {
+                            spokenCharCount = e.charIndex + (e.charLength || 1);
+                            revealTextProgress(text, spokenCharCount);
+                        }
+                    };
+
+                    utterance.onend = () => {
+                        if (!isBuzzed) {
+                            isReading = false;
+                            if (showTextWhileReadingCheckbox.checked) questionDisplayText.textContent = text;
+                            statusBadge.textContent = "読み上げ完了";
+                            statusBadge.className = "status-badge badge-idle";
+                        }
+                    };
+                    window.activeUtterance = utterance;
+                    window.speechSynthesis.speak(utterance);
+                } catch(e){}
+            }
+
+            const charDelay = (180 / parseFloat(speechRateSelect.value));
+            fallbackTimer = setInterval(() => {
+                if (!isReading || isBuzzed) {
+                    clearInterval(fallbackTimer);
+                    return;
+                }
+                spokenCharCount = Math.min(spokenCharCount + 1, text.length);
+                revealTextProgress(text, spokenCharCount);
+                if (spokenCharCount >= text.length) {
+                    isReading = false;
+                    statusBadge.textContent = "読み上げ完了";
+                    statusBadge.className = "status-badge badge-idle";
+                    clearInterval(fallbackTimer);
+                }
+            }, charDelay);
+        }
+
+        function revealTextProgress(fullText, charIndex) {
+            if (showTextWhileReadingCheckbox.checked) {
+                questionDisplayText.textContent = fullText.substring(0, charIndex);
+            } else {
+                questionDisplayText.textContent = '（※音声を聞いて早押ししてください）';
+            }
+        }
+
+        function stopSpeech() {
+            if (fallbackTimer) clearInterval(fallbackTimer);
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            window.activeUtterance = null;
+            isReading = false;
+            statusBadge.textContent = "待機中";
+            statusBadge.className = "status-badge badge-idle";
+        }
+
+        testAudioBtn.addEventListener('click', () => {
+            if (!('speechSynthesis' in window)) return alert('非対応ブラウザです');
+            stopSpeech();
+            window.speechSynthesis.resume();
+            const utterance = new SpeechSynthesisUtterance("音声テストです。");
+            utterance.lang = 'ja-JP';
+            utterance.rate = parseFloat(speechRateSelect.value);
+            const voice = getJapaneseVoice();
+            if (voice) utterance.voice = voice;
+            window.speechSynthesis.speak(utterance);
+        });
+
+        function handleBuzz(pName = myPlayerName, sendToPeer = true) {
+            if (isBuzzed || currentQIndex < 0) return;
+            stopSpeech();
+            isBuzzed = true;
+
+            const q = questions[currentQIndex];
+            const currentFullText = q ? q.question : "";
+            const buzzCutText = currentFullText.substring(0, spokenCharCount) || "（冒頭）";
+
+            buzzerName.textContent = pName;
+            buzzPointText.textContent = buzzCutText;
+
+            if (showBuzzPointCheckbox.checked) buzzPointContainer.classList.remove('hidden');
+            else buzzPointContainer.classList.add('hidden');
+
+            buzzedNotice.classList.remove('hidden');
+            statusBadge.textContent = "早押し発生！";
+            statusBadge.className = "status-badge badge-buzzed";
+
+            if (gameMode === 'multi' && sendToPeer) {
+                if (isHost) {
+                    connections.forEach(c => { if (c.open) c.send({ type: 'BUZZ', player: pName }); });
+                } else if (conn && conn.open) {
+                    conn.send({ type: 'BUZZ', player: pName });
+                }
+            }
+        }
+
+        function loadNextQuestion() {
+            if (questions.length === 0) return alert('問題データがありません。');
+            if (gameMode === 'multi' && !isHost) return alert('ホストプレイヤーのみ次の問題に進められます。');
+
+            currentQIndex = (currentQIndex + 1) % questions.length;
+            const q = questions[currentQIndex];
+            currentQNumEl.textContent = currentQIndex + 1;
+            totalQNumEl.textContent = questions.length;
+            answerArea.classList.add('hidden');
+
+            startReadingQuestion(q.question, true);
+        }
+
+        function judgeAnswer(isCorrect) {
+            if (!answerRevealed) return alert('正誤判定を行う前に「答え」を見てください。');
+            if (currentQIndex < 0 || !questions[currentQIndex]) return;
+
+            const target = buzzerName.textContent || myPlayerName;
+            scores[target] = (scores[target] || 0) + (isCorrect ? 10 : -10);
+            renderScoreboard();
+            judgeCorrectBtn.disabled = true;
+            judgeWrongBtn.disabled = true;
+
+            if (gameMode === 'multi') {
+                if (isHost) {
+                    broadcastRoomState();
+                } else if (conn && conn.open) {
+                    conn.send({ type: 'SCORE', scores: scores });
+                }
+            }
+        }
+
+        function showAnswer(sendToPeer = true) {
+            if (currentQIndex < 0) return;
+            const q = questions[currentQIndex];
+            if (!q) return;
+
+            stopSpeech();
+            questionDisplayText.textContent = q.question;
+            answerText.textContent = q.answer;
+            explanationText.textContent = q.explanation || "";
+            answerArea.classList.remove('hidden');
+
+            answerRevealed = true;
+            judgeCorrectBtn.disabled = false;
+            judgeWrongBtn.disabled = false;
+
+            if (gameMode === 'multi' && isHost && sendToPeer) {
+                connections.forEach(c => { if (c.open) c.send({ type: 'SHOW_ANSWER' }); });
+            }
+        }
+
+        function renderScoreboard() {
+            scoreboardList.innerHTML = '';
+            Object.entries(scores).sort((a,b) => b[1] - a[1]).forEach(([name, score], idx) => {
+                const div = document.createElement('div');
+                div.className = 'score-item';
+                div.innerHTML = `<span>${idx + 1}. ${name}</span><strong style="color: ${score >= 0 ? '#34d399' : '#f87171'}">${score} pt</strong>`;
+                scoreboardList.appendChild(div);
+            });
+        }
+
+        useSampleCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                questions = [...PRESET_QUESTIONS];
+                currentQIndex = -1;
+                totalQNumEl.textContent = questions.length;
+                currentQNumEl.textContent = '0';
+                loadedCount.textContent = `${questions.length}問セット中`;
+                questionDisplayText.textContent = 'サンプル問題（5問）を読み込みました。「次の問題へ」を押してください。';
+            } else {
+                questions = [];
+                currentQIndex = -1;
+                totalQNumEl.textContent = '0';
+                currentQNumEl.textContent = '0';
+                loadedCount.textContent = '0問';
+                questionDisplayText.textContent = '問題データが空です。CSVをアップロードしてください。';
+            }
+            stopSpeech();
+        });
+
+        // Smart CSV parsing handling potential leading question index columns
+        function parseCSV(file) {
+            Papa.parse(file, {
+                header: false,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const parsed = [];
+                    results.data.forEach((row, i) => {
+                        if (i === 0 && (row[0].includes('問題') || row[0].toLowerCase().includes('question'))) return;
+                        
+                        let cleanRow = row.map(col => col ? col.trim() : "").filter(col => col !== "");
+                        if (cleanRow.length < 2) return;
+
+                        let qText = "";
+                        let aText = "";
+                        let expText = "";
+
+                        // If 1st column is just a number (like question index 1, 2, 3...) shift fields
+                        if (cleanRow.length >= 3 && /^\d+$/.test(cleanRow[0])) {
+                            qText = cleanRow[1];
+                            aText = cleanRow[2];
+                            expText = cleanRow[3] || "";
+                        } else {
+                            qText = cleanRow[0];
+                            aText = cleanRow[1];
+                            expText = cleanRow[2] || "";
+                        }
+
+                        if (qText && aText) {
+                            parsed.push({ question: qText, answer: aText, explanation: expText });
+                        }
+                    });
+
+                    if (parsed.length > 0) {
+                        questions = parsed;
+                        currentQIndex = -1;
+                        totalQNumEl.textContent = questions.length;
+                        currentQNumEl.textContent = '0';
+                        loadedCount.textContent = `CSV: ${questions.length}問`;
+                        questionDisplayText.textContent = `CSVから ${questions.length} 問読み込みました。`;
+                        stopSpeech();
+                    } else {
+                        alert('有効なCSVデータではありません');
+                    }
+                }
+            });
+        }
+
+        buzzBtn.addEventListener('click', () => handleBuzz(myPlayerName));
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                handleBuzz(myPlayerName);
+            }
+        });
+
+        nextQBtn.addEventListener('click', loadNextQuestion);
+        judgeCorrectBtn.addEventListener('click', () => judgeAnswer(true));
+        judgeWrongBtn.addEventListener('click', () => judgeAnswer(false));
+        showAnswerBtn.addEventListener('click', () => showAnswer(true));
+        resetScoreBtn.addEventListener('click', () => { scores = {}; scores[myPlayerName] = 0; renderScoreboard(); });
+
+        dropZone.addEventListener('click', () => csvFileInput.click());
+        csvFileInput.addEventListener('change', (e) => { if (e.target.files.length) parseCSV(e.target.files[0]); });
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) parseCSV(e.dataTransfer.files[0]);
+        });
+    </script>
+</body>
+</html>
